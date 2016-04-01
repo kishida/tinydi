@@ -1,14 +1,16 @@
 package kis.di.sample;
 
-import kis.di.Context;
+import javax.inject.Inject;
 
 /**
  * @author naoki
  */
 public class Bar {
     
+    @Inject
+    Foo foo;
+    
     void showMessage() {
-        Foo foo = (Foo) Context.getBean("foo");
         System.out.println(foo.getMessage());
     }
     
