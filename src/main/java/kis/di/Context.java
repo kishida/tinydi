@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
@@ -19,9 +21,12 @@ import javax.inject.Named;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.CtField;
 import javassist.CtMethod;
+import javassist.Modifier;
 import javassist.NotFoundException;
 import kis.di.annotation.InvokeLog;
+import kis.di.annotation.RequestScoped;
 
 /**
  * @author naoki
@@ -30,6 +35,7 @@ public class Context {
     
     static Map<String, Class> types = new HashMap<>();
     static Map<String, Object> beans = new HashMap<>();
+    static ThreadLocal<Map<String, Object>> requestBeans = new ThreadLocal<>();
 
     public static void autoRegister() {
         try {
@@ -65,9 +71,20 @@ public class Context {
     }
 
     public static Object getBean(String name) {
-        return beans.computeIfAbsent(name, (java.lang.String key) -> {
-            Class type = types.get(name);
-            Objects.requireNonNull(type, name + " not found.");
+        Class type = types.get(name);
+        Objects.requireNonNull(type, name + " not found.");
+        
+        Map<String, Object> scope;
+        if (type.isAnnotationPresent(RequestScoped.class)) {
+            scope = requestBeans.get();
+            if (scope == null) {
+                scope = new HashMap<>();
+                requestBeans.set(scope);
+            }
+        } else {
+            scope = beans;
+        } 
+        return scope.computeIfAbsent(name, (java.lang.String key) -> {
             try {
                 return createObject(type);
             } catch (InstantiationException | IllegalAccessException ex) {
@@ -122,8 +139,45 @@ public class Context {
                 continue;
             }
             field.setAccessible(true);
-            field.set(object, getBean(field.getName()));
+            Object bean;
+            if (!type.isAnnotationPresent(RequestScoped.class) && field.getType().isAnnotationPresent(RequestScoped.class)) {
+                bean = scopeWrapper(field.getType(), field.getName());
+            } else {
+                bean = getBean(field.getName());
+            }
+            field.set(object, bean);
         }
     }
-    
+    private static Set<String> cannotOverrides = Stream.of("finalize", "clone").collect(Collectors.toSet());
+    private static <T> T scopeWrapper(Class<T> type, String name) {
+        try {
+            ClassPool pool = ClassPool.getDefault();
+            CtClass cls = pool.getOrNull(type.getName() + "$$_");
+            if (cls == null) {
+                CtClass orgCls = pool.get(type.getName());
+                cls = pool.makeClass(type.getName() + "$$_");
+                cls.setSuperclass(orgCls);
+
+                CtClass tl = pool.get(LocalCache.class.getName());
+                CtField org = new CtField(tl, "org", cls);
+                cls.addField(org, "new " + LocalCache.class.getName() + "(\"" + name + "\");");
+                
+                for (CtMethod method : orgCls.getMethods()) {
+                    if (Modifier.isFinal(method.getModifiers()) | cannotOverrides.contains(method.getName())) {
+                        continue;
+                    }
+                    CtMethod override = new CtMethod(method.getReturnType(), method.getName(), method.getParameterTypes(), cls);
+                    override.setExceptionTypes(method.getExceptionTypes());
+                    override.setBody(
+                              "{"
+                            + "  return ((" + type.getName() + ")org.get())." + method.getName() + "($$);"
+                            + "}");
+                    cls.addMethod(override);
+                }
+            }
+            return (T) cls.toClass().newInstance();
+        } catch (NotFoundException |IllegalAccessException | CannotCompileException | InstantiationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 }
