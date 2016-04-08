@@ -35,30 +35,31 @@ public class Context {
     
     static Map<String, Class> types = new HashMap<>();
     static Map<String, Object> beans = new HashMap<>();
-    static ThreadLocal<Map<String, Object>> requestBeans = new ThreadLocal<>();
+    static ThreadLocal<Map<String, Object>> requestBeans = new InheritableThreadLocal<>();
 
     public static void autoRegister() {
         try {
             URL res = Context.class.getResource(
                     "/" + Context.class.getName().replace('.', '/') + ".class");
             Path classPath = new File(res.toURI()).toPath().resolve("../../..");
-            Files.walk(classPath)
-                 .filter(p -> !Files.isDirectory(p))
-                 .filter(p -> p.toString().endsWith(".class"))
-                 .map(p -> classPath.relativize(p))
-                 .map(p -> p.toString().replace(File.separatorChar, '.'))
-                 .map(n -> n.substring(0, n.length() - 6))
-                 .forEach(n -> {
-                    try {
-                        Class c = Class.forName(n);
-                        if (c.isAnnotationPresent(Named.class)) {
-                            String simpleName = c.getSimpleName();
-                            register(simpleName.substring(0, 1).toLowerCase() + simpleName.substring(1), c);
-                        }
-                    } catch (ClassNotFoundException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                 });
+            try(Stream<Path> stream = Files.walk(classPath)){
+                 stream.filter(p -> !Files.isDirectory(p))
+                    .filter(p -> p.toString().endsWith(".class"))
+                    .map(p -> classPath.relativize(p))
+                    .map(p -> p.toString().replace(File.separatorChar, '.'))
+                    .map(n -> n.substring(0, n.length() - 6))
+                    .forEach(n -> {
+                       try {
+                           Class c = Class.forName(n);
+                           if (c.isAnnotationPresent(Named.class)) {
+                               String simpleName = c.getSimpleName();
+                               register(simpleName.substring(0, 1).toLowerCase() + simpleName.substring(1), c);
+                           }
+                       } catch (ClassNotFoundException ex) {
+                           throw new RuntimeException(ex);
+                       }
+                    });
+            }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         } catch (URISyntaxException ex) {

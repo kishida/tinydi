@@ -5,7 +5,7 @@ package kis.di;
  * @author naoki
  */
 public class LocalCache<T> {
-    private ThreadLocal<T> local = new ThreadLocal<>();
+    private ThreadLocal<T> local = new InheritableThreadLocal<>();
     private String name;
 
     public LocalCache(String name) {
@@ -14,11 +14,10 @@ public class LocalCache<T> {
     
     public T get() {
         T obj = local.get();
-        if (obj != null) {
-            return obj;
+        if (obj == null) {
+            obj = (T) Context.getBean(name);
+            local.set(obj);
         }
-        obj = (T) Context.getBean(name);
-        local.set(obj);
         return obj;
     }
 }
