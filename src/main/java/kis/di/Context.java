@@ -8,6 +8,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -65,6 +66,10 @@ public class Context {
         } catch (URISyntaxException ex) {
             throw new RuntimeException(ex);
         }
+    }
+    
+    public static Collection<Map.Entry<String, Class>> registeredClasses() {
+        return types.entrySet();
     }
     
     public static void register(String name, Class type) {
