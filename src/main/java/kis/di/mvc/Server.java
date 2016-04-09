@@ -48,7 +48,7 @@ public class Server {
             }
             String root = trimSlash(rootAno.value());
             if (!root.isEmpty()) {
-                root += "/";
+                root = "/" + root;
             }
             for (Method m : cls.getMethods()) {
                 Path pathAno = m.getAnnotation(Path.class);
@@ -90,7 +90,7 @@ public class Server {
                     try (OutputStream os = s.getOutputStream();
                          PrintWriter pw = new PrintWriter(os))
                     {
-                        ProcessorMethod method = methods.get(path);
+                        ProcessorMethod method = methods.get(path.replaceFirst("/index$", "/"));
                         if (method == null) {
                             pw.println("HTTP/1.0 404 Not Found");
                             pw.println("Content-Type: text/html");
