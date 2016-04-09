@@ -70,6 +70,7 @@ public class Server {
         });
         
         Pattern pattern = Pattern.compile("([A-Z]+) ([^ ]+) (.+)");
+        Pattern patternHeader = Pattern.compile("([A-Za-z-]+): (.+)");
         
         ServerSocket serverSoc = new ServerSocket(8989);
         ExecutorService executors = Executors.newFixedThreadPool(10);
@@ -86,7 +87,19 @@ public class Server {
                     String path = mat.group(2);
                     String protocol = mat.group(3);
                     
-                    for (String line; (line = bur.readLine()) != null && !line.isEmpty(););
+                    RequestInfo info = (RequestInfo) Context.getBean("requestInfo");
+                    info.setLocalAddress(s.getLocalAddress());
+                    info.setPath(path);
+                    for (String line; (line = bur.readLine()) != null && !line.isEmpty();) {
+                        Matcher matHeader = patternHeader.matcher(line);
+                        if (matHeader.find()) {
+                            switch (matHeader.group(1)) {
+                                case "User-Agent":
+                                    info.setUserAgent(matHeader.group(2));
+                                    break;
+                            }
+                        }
+                    }
                     try (OutputStream os = s.getOutputStream();
                          PrintWriter pw = new PrintWriter(os))
                     {
