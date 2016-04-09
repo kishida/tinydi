@@ -1,4 +1,4 @@
-package kis.di.mvc;
+package kis.di.sample.mvc;
 
 import java.time.LocalDateTime;
 
