@@ -18,8 +18,15 @@ public class RequestInfoController {
     
     @Path("index")
     public String index() {
-        return String.format("<h1>Info</h1>Host:%s<br/>Path:%s<br/>UserAgent:%s<br/>",
-                requestInfo.getLocalAddress(), requestInfo.getPath(), requestInfo.getUserAgent());
+        return String.format("<h1>Info</h1>"
+                + "Host:%s<br/>"
+                + "Path:%s<br/>"
+                + "UserAgent:%s<br/>"
+                + "SessionId:%s<br/>",
+                requestInfo.getLocalAddress(), 
+                requestInfo.getPath(),
+                requestInfo.getUserAgent(),
+                requestInfo.getSessionId());
                 
     }
 }
