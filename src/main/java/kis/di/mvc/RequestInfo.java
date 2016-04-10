@@ -18,4 +18,5 @@ public class RequestInfo {
     private String path;
     private InetAddress localAddress;
     private String userAgent;
+    private String sessionId;
 }

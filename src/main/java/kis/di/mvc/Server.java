@@ -13,8 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import kis.di.Context;
 import kis.di.annotation.Path;
@@ -71,7 +73,7 @@ public class Server {
         
         Pattern pattern = Pattern.compile("([A-Z]+) ([^ ]+) (.+)");
         Pattern patternHeader = Pattern.compile("([A-Za-z-]+): (.+)");
-        
+        AtomicLong lastSessionId = new AtomicLong();
         ServerSocket serverSoc = new ServerSocket(8989);
         ExecutorService executors = Executors.newFixedThreadPool(10);
         for (;;) {
@@ -81,6 +83,10 @@ public class Server {
                      BufferedReader bur = new BufferedReader(new InputStreamReader(is))) 
                 {
                     String first = bur.readLine();
+                    if (first == null) {
+                        System.out.println("null request");
+                        return;
+                    }
                     Matcher mat = pattern.matcher(first);
                     mat.find();
                     String httpMethod = mat.group(1);
@@ -90,16 +96,26 @@ public class Server {
                     RequestInfo info = (RequestInfo) Context.getBean("requestInfo");
                     info.setLocalAddress(s.getLocalAddress());
                     info.setPath(path);
+                    Map<String, String> cookies = new HashMap<>();
                     for (String line; (line = bur.readLine()) != null && !line.isEmpty();) {
                         Matcher matHeader = patternHeader.matcher(line);
                         if (matHeader.find()) {
+                            String value = matHeader.group(2);
                             switch (matHeader.group(1)) {
                                 case "User-Agent":
-                                    info.setUserAgent(matHeader.group(2));
+                                    info.setUserAgent(value);
                                     break;
+                                case "Cookie":
+                                    Stream.of(value.split(";"))
+                                          .map(exp -> exp.trim().split("="))
+                                          .filter(kv -> kv.length == 2)
+                                          .forEach(kv -> cookies.put(kv[0], kv[1]));
                             }
                         }
                     }
+                    String sessionId = cookies.getOrDefault("jsessionid", 
+                                                            Long.toString(lastSessionId.incrementAndGet()));
+                    info.setSessionId(sessionId);
                     try (OutputStream os = s.getOutputStream();
                          PrintWriter pw = new PrintWriter(os))
                     {
@@ -117,6 +133,7 @@ public class Server {
                             Object output = method.method.invoke(bean);
                             pw.println("HTTP/1.0 200 OK");
                             pw.println("Content-Type: text/html");
+                            pw.println("Set-Cookie: jsessionid=" + sessionId + "; path=/");
                             pw.println();
                             pw.println(output);
                         } catch (Exception ex) {
