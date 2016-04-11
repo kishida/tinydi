@@ -28,6 +28,8 @@ import javassist.Modifier;
 import javassist.NotFoundException;
 import kis.di.annotation.InvokeLog;
 import kis.di.annotation.RequestScoped;
+import kis.di.annotation.SessionScoped;
+import kis.di.mvc.BeanSession;
 
 /**
  * @author naoki
@@ -38,6 +40,12 @@ public class Context {
     static Map<String, Object> beans = new HashMap<>();
     static ThreadLocal<Map<String, Object>> requestBeans = new InheritableThreadLocal<>();
 
+    static BeanSession beanSession;
+    
+    public static void setBeanSession(BeanSession beanSession) {
+        Context.beanSession = beanSession;
+    }
+    
     public static void autoRegister() {
         try {
             URL res = Context.class.getResource(
@@ -87,6 +95,8 @@ public class Context {
                 scope = new HashMap<>();
                 requestBeans.set(scope);
             }
+        } else if (type.isAnnotationPresent(SessionScoped.class)) {
+            scope = beanSession.getBeans();
         } else {
             scope = beans;
         } 
@@ -139,6 +149,16 @@ public class Context {
         }
     }
     
+    private static int scopeRank(Class type) {
+        if (type.isAnnotationPresent(RequestScoped.class)) {
+            return 0;
+        }
+        if (type.isAnnotationPresent(SessionScoped.class)) {
+            return 5;
+        }
+        return 10;
+    }
+    
     private static <T> void inject(Class<T> type, T object) throws IllegalArgumentException, IllegalAccessException {
         for (Field field : type.getDeclaredFields()) {
             if (!field.isAnnotationPresent(Inject.class)) {
@@ -146,7 +166,8 @@ public class Context {
             }
             field.setAccessible(true);
             Object bean;
-            if (!type.isAnnotationPresent(RequestScoped.class) && field.getType().isAnnotationPresent(RequestScoped.class)) {
+            
+            if (scopeRank(type) > scopeRank(field.getType())) {
                 bean = scopeWrapper(field.getType(), field.getName());
             } else {
                 bean = getBean(field.getName());

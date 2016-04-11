@@ -41,6 +41,8 @@ public class Server {
     
     public static void main(String[] args) throws IOException {
         Context.autoRegister();
+        BeanSession beanSession = new BeanSession();
+        Context.setBeanSession(beanSession);
         Map<String, ProcessorMethod> methods = new HashMap<>();
         Context.registeredClasses().forEach(entry -> {
             Class cls = entry.getValue();
@@ -73,7 +75,7 @@ public class Server {
         
         Pattern pattern = Pattern.compile("([A-Z]+) ([^ ]+) (.+)");
         Pattern patternHeader = Pattern.compile("([A-Za-z-]+): (.+)");
-        AtomicLong lastSessionId = new AtomicLong();
+        AtomicLong lastSessionId = new AtomicLong(10);
         ServerSocket serverSoc = new ServerSocket(8989);
         ExecutorService executors = Executors.newFixedThreadPool(10);
         for (;;) {
@@ -113,8 +115,18 @@ public class Server {
                             }
                         }
                     }
-                    String sessionId = cookies.getOrDefault("jsessionid", 
-                                                            Long.toString(lastSessionId.incrementAndGet()));
+                    
+                    
+                    String sessionId = cookies.get("jsessionid");
+                    if (sessionId != null) {
+                        if (!beanSession.isSessionRegistered(sessionId)) {
+                            sessionId = null;
+                        }
+                    }
+                    if (sessionId == null) {
+                        sessionId = Long.toString(lastSessionId.incrementAndGet());
+                    }
+                    beanSession.setSessionId(sessionId);
                     info.setSessionId(sessionId);
                     try (OutputStream os = s.getOutputStream();
                          PrintWriter pw = new PrintWriter(os))
@@ -137,11 +149,12 @@ public class Server {
                             pw.println();
                             pw.println(output);
                         } catch (Exception ex) {
-                            pw.println("HTTP/1.0 200 OK");
+                            pw.println("HTTP/1.0 500 Internal Server Error");
                             pw.println("Content-Type: text/html");
                             pw.println();
                             pw.println("<h1>500 Internal Server Error</h1>");
                             pw.println(ex);
+                            ex.printStackTrace();
                         }
                     }
                 } catch (IOException ex) {
