@@ -11,8 +11,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -77,10 +75,9 @@ public class Server {
         Pattern patternHeader = Pattern.compile("([A-Za-z-]+): (.+)");
         AtomicLong lastSessionId = new AtomicLong(10);
         ServerSocket serverSoc = new ServerSocket(8989);
-        ExecutorService executors = Executors.newFixedThreadPool(10);
         for (;;) {
             Socket s = serverSoc.accept();
-            executors.execute(() -> {
+            new Thread(() -> {
                 try (InputStream is = s.getInputStream();
                      BufferedReader bur = new BufferedReader(new InputStreamReader(is))) 
                 {
@@ -115,7 +112,6 @@ public class Server {
                             }
                         }
                     }
-                    
                     
                     String sessionId = cookies.get("jsessionid");
                     if (sessionId != null) {
@@ -160,7 +156,7 @@ public class Server {
                 } catch (IOException ex) {
                     System.out.println(ex);
                 }
-            });
+            }).start();
         }
     }
 }
