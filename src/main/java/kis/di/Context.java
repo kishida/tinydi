@@ -42,23 +42,24 @@ public class Context {
         try {
             URL res = Context.class.getResource(
                     "/" + Context.class.getName().replace('.', '/') + ".class");
-            Path classPath = new File(res.toURI()).toPath().resolve("../../..");
+            Path classPath = new File(res.toURI()).toPath().getParent().getParent().getParent();
             try(Stream<Path> stream = Files.walk(classPath)){
                  stream.filter(p -> !Files.isDirectory(p))
                     .filter(p -> p.toString().endsWith(".class"))
                     .map(p -> classPath.relativize(p))
                     .map(p -> p.toString().replace(File.separatorChar, '.'))
                     .map(n -> n.substring(0, n.length() - 6))
-                    .forEach(n -> {
-                       try {
-                           Class c = Class.forName(n);
-                           if (c.isAnnotationPresent(Named.class)) {
-                               String simpleName = c.getSimpleName();
-                               register(simpleName.substring(0, 1).toLowerCase() + simpleName.substring(1), c);
-                           }
-                       } catch (ClassNotFoundException ex) {
-                           throw new RuntimeException(ex);
-                       }
+                    .map(n -> {
+                        try {
+                            return Class.forName(n);
+                        } catch (ClassNotFoundException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    })
+                    .filter(c -> c.isAnnotationPresent(Named.class))
+                    .forEach(c -> {
+                        String simpleName = c.getSimpleName();
+                        register(simpleName.substring(0, 1).toLowerCase() + simpleName.substring(1), c);
                     });
             }
         } catch (IOException ex) {
@@ -90,7 +91,7 @@ public class Context {
         } else {
             scope = beans;
         } 
-        return scope.computeIfAbsent(name, (java.lang.String key) -> {
+        return scope.computeIfAbsent(name, key -> {
             try {
                 return createObject(type);
             } catch (InstantiationException | IllegalAccessException ex) {

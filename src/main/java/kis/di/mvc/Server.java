@@ -74,7 +74,7 @@ public class Server {
         Pattern pattern = Pattern.compile("([A-Z]+) ([^ ]+) (.+)");
         Pattern patternHeader = Pattern.compile("([A-Za-z-]+): (.+)");
         AtomicLong lastSessionId = new AtomicLong();
-        ServerSocket serverSoc = new ServerSocket(8989);
+        ServerSocket serverSoc = new ServerSocket(8993);
         ExecutorService executors = Executors.newFixedThreadPool(10);
         for (;;) {
             Socket s = serverSoc.accept();
